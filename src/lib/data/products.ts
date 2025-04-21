@@ -1,22 +1,26 @@
 "use server"
 
-import { sdk } from "@lib/config"
 import { sortProducts } from "@lib/util/sort-products"
 import { HttpTypes } from "@medusajs/types"
 import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
-import { getAuthHeaders, getCacheOptions } from "./cookies"
 import { getRegion, retrieveRegion } from "./regions"
+
+const MEDUSA_BACKEND_URL =
+  process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
 
 export const listProducts = async ({
   pageParam = 1,
   queryParams,
   countryCode,
   regionId,
+  sortBy = "created_at",
 }: {
   pageParam?: number
   queryParams?: HttpTypes.FindParams & HttpTypes.StoreProductParams
   countryCode?: string
   regionId?: string
+  sortBy?: SortOptions
 }): Promise<{
   response: { products: HttpTypes.StoreProduct[]; count: number }
   nextPage: number | null
@@ -45,50 +49,52 @@ export const listProducts = async ({
     }
   }
 
-  const headers = {
-    ...(await getAuthHeaders()),
-  }
-
-  const next = {
-    ...(await getCacheOptions("products")),
-  }
-
-  return sdk.client
-    .fetch<{ products: HttpTypes.StoreProduct[]; count: number }>(
-      `/store/products`,
+  try {
+    const response = await fetch(
+      `${MEDUSA_BACKEND_URL}/store/meilisearch-products?region_id=${region.id}&limit=${limit}&offset=${offset}&order=${sortBy}`,
       {
         method: "GET",
-        query: {
-          limit,
-          offset,
-          region_id: region?.id,
-          fields:
-            "*variants.calculated_price,+variants.inventory_quantity,+metadata,+tags",
-          ...queryParams,
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          "x-publishable-api-key": PUBLISHABLE_KEY || "",
         },
-        headers,
-        next,
-        cache: "force-cache",
       }
     )
-    .then(({ products, count }) => {
-      const nextPage = count > offset + limit ? pageParam + 1 : null
 
-      return {
-        response: {
-          products,
-          count,
-        },
-        nextPage: nextPage,
-        queryParams,
-      }
-    })
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("Error response:", {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+      })
+      throw new Error(
+        `Failed to fetch products: ${response.status} ${response.statusText}`
+      )
+    }
+
+    const data = await response.json()
+    const nextPage = data.count > offset + limit ? pageParam + 1 : null
+
+    return {
+      response: {
+        products: data.products,
+        count: data.count,
+      },
+      nextPage,
+      queryParams,
+    }
+  } catch (error) {
+    console.error("Error fetching products from Meilisearch:", error)
+    return {
+      response: { products: [], count: 0 },
+      nextPage: null,
+      queryParams,
+    }
+  }
 }
 
-/**
- * This will fetch 100 products to the Next.js cache and sort them based on the sortBy parameter.
- * It will then return the paginated products based on the page and limit parameters.
- */
 export const listProductsWithSort = async ({
   page = 0,
   queryParams,

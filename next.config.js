@@ -6,6 +6,14 @@ checkEnvVariables()
  * @type {import('next').NextConfig}
  */
 const nextConfig = {
+  async rewrites() {
+    return [
+      {
+        source: "/store/:path*",
+        destination: "http://localhost:9000/store/:path*",
+      },
+    ]
+  },
   reactStrictMode: true,
   logging: {
     fetches: {
