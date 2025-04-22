@@ -49,9 +49,11 @@ export const listProducts = async ({
     }
   }
 
+  // region_id=${region.id}&limit=${limit}&offset=${offset}&order=${sortBy}
+
   try {
     const response = await fetch(
-      `${MEDUSA_BACKEND_URL}/store/meilisearch-products?region_id=${region.id}&limit=${limit}&offset=${offset}&order=${sortBy}`,
+      `${MEDUSA_BACKEND_URL}/store/meilisearch-products`,
       {
         method: "GET",
         cache: "no-store",
