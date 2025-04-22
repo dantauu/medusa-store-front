@@ -9,8 +9,8 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: "/store/:path*",
-        destination: "http://localhost:9000/store/:path*",
+        source: "/dk/store/meilisearch-products",
+        destination: "http://localhost:9000/store/meilisearch-products",
       },
     ]
   },
