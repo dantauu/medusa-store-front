@@ -1,29 +1,34 @@
-import { HttpTypes } from "@medusajs/types"
 import { getPercentageDiff } from "./get-precentage-diff"
 import { convertToLocale } from "./money"
 
 export const getPricesForVariant = (variant: any) => {
-  if (!variant?.calculated_price?.calculated_amount) {
+  const rawPrice =
+    variant?.calculated_price?.calculated_amount ?? variant?.calculated_price
+
+  if (rawPrice == null) {
     return null
   }
+  const currency =
+    variant?.calculated_price?.currency_code ?? variant?.currency_code ?? "USD"
+
+  const calculated_number = rawPrice
+  const original_number = variant?.calculated_price?.original_amount ?? rawPrice
 
   return {
-    calculated_price_number: variant.calculated_price.calculated_amount,
+    calculated_price_number: calculated_number,
     calculated_price: convertToLocale({
-      amount: variant.calculated_price.calculated_amount,
-      currency_code: variant.calculated_price.currency_code,
+      amount: calculated_number,
+      currency_code: currency,
     }),
-    original_price_number: variant.calculated_price.original_amount,
+    original_price_number: original_number,
     original_price: convertToLocale({
-      amount: variant.calculated_price.original_amount,
-      currency_code: variant.calculated_price.currency_code,
+      amount: original_number,
+      currency_code: currency,
     }),
-    currency_code: variant.calculated_price.currency_code,
-    price_type: variant.calculated_price.calculated_price.price_list_type,
-    percentage_diff: getPercentageDiff(
-      variant.calculated_price.original_amount,
-      variant.calculated_price.calculated_amount
-    ),
+    currency_code: currency,
+    price_type:
+      variant?.calculated_price?.calculated_price?.price_list_type ?? null,
+    percentage_diff: getPercentageDiff(original_number, calculated_number),
   }
 }
 
@@ -31,49 +36,56 @@ export function getProductPrice({
   product,
   variantId,
 }: {
-  product: HttpTypes.StoreProduct
+  product: any
   variantId?: string
 }) {
-  if (!product || !product.id) {
+  if (!product) {
     throw new Error("No product provided")
   }
-
-  const cheapestPrice = () => {
-    if (!product || !product.variants?.length) {
-      return null
-    }
-
-    const cheapestVariant: any = product.variants
-      .filter((v: any) => !!v.calculated_price)
-      .sort((a: any, b: any) => {
-        return (
-          a.calculated_price.calculated_amount -
-          b.calculated_price.calculated_amount
-        )
-      })[0]
-
-    return getPricesForVariant(cheapestVariant)
-  }
-
-  const variantPrice = () => {
-    if (!product || !variantId) {
-      return null
-    }
-
-    const variant: any = product.variants?.find(
-      (v) => v.id === variantId || v.sku === variantId
+  if (variantId && product.variants?.length) {
+    const variant = product.variants.find(
+      (v: any) => v.id === variantId || v.sku === variantId
     )
-
-    if (!variant) {
-      return null
+    if (variant) {
+      return {
+        product,
+        cheapestPrice: null,
+        variantPrice: getPricesForVariant(variant),
+      }
     }
-
-    return getPricesForVariant(variant)
   }
 
+  if (typeof product.minPrice === "number") {
+    const min = product.minPrice
+    const currency = product.currency_code ?? "USD"
+    return {
+      product,
+      cheapestPrice: {
+        calculated_price_number: min,
+        calculated_price: convertToLocale({
+          amount: min,
+          currency_code: currency,
+        }),
+        currency_code: currency,
+      },
+      variantPrice: null,
+    }
+  }
+
+  const sorted = (product.variants || [])
+    .filter((v: any) => v.calculated_price)
+    .sort((a: any, b: any) => {
+      const aVal =
+        a.calculated_price.calculated_amount ?? a.calculated_price ?? 0
+      const bVal =
+        b.calculated_price.calculated_amount ?? b.calculated_price ?? 0
+      return aVal - bVal
+    })
+
+  const cheapest = sorted[0]
   return {
     product,
-    cheapestPrice: cheapestPrice(),
-    variantPrice: variantPrice(),
+    cheapestPrice: cheapest ? getPricesForVariant(cheapest) : null,
+    variantPrice: null,
   }
 }
