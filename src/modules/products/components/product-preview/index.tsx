@@ -1,5 +1,4 @@
 import { Text } from "@medusajs/ui"
-import { listProducts } from "@lib/data/products"
 import { getProductPrice } from "@lib/util/get-product-price"
 import { HttpTypes } from "@medusajs/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
@@ -15,15 +14,6 @@ export default async function ProductPreview({
   isFeatured?: boolean
   region: HttpTypes.StoreRegion
 }) {
-  const pricedProduct = await listProducts({
-    regionId: region.id,
-    queryParams: { id: [product.id!] },
-  }).then(({ response }) => response.products[0])
-
-  if (!pricedProduct) {
-    return null
-  }
-
   const { cheapestPrice } = getProductPrice({
     product,
   })
